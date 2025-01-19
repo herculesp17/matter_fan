@@ -1,0 +1,14 @@
+key,type,encoding,value
+chip-factory,namespace,,
+discriminator,data,u32,2345
+iteration-count,data,u32,10000
+salt,data,string,CC3+AuhL+9poa3FMn/1uMkxbcqKKvXgIZtYTC57Gp5I=
+vendor-id,data,u32,65522
+product-id,data,u32,32769
+serial-num,data,string,98b6adb38b6745a61a930c7a4b5c85bd
+dac-cert,file,binary,/home/lennart/esp/fan/out/fff2_8001/d9f4726c-2c86-4ca3-a270-12d35cfdf43f/internal/DAC_cert.der
+dac-key,file,binary,/home/lennart/esp/fan/out/fff2_8001/d9f4726c-2c86-4ca3-a270-12d35cfdf43f/internal/DAC_private_key.bin
+dac-pub-key,file,binary,/home/lennart/esp/fan/out/fff2_8001/d9f4726c-2c86-4ca3-a270-12d35cfdf43f/internal/DAC_public_key.bin
+pai-cert,file,binary,/home/lennart/esp/fan/out/fff2_8001/staging/pai_cert.der
+verifier,data,string,/koO7BBMch//4tLiYEwEVItkEARR0TCYkeie6NQiA4oETQzFkc7gG9+R/kThlHiG+cGyJhhXYI5YtuiKKg7zK9H3zC0x5G87PNpNqQrFV5axMyMVVEYJcC2qAP3CI6/H5w==
+cert-dclrn,file,binary,../esp-matter/connectedhomeip/connectedhomeip/credentials/test/certification-declaration/Chip-Test-CD-FFF2-8001.der

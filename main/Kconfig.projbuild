@@ -1,0 +1,14 @@
+config EXAMPLE_LED_GPIO
+    int "LED GPIO number"
+    range 0 48
+    default 0 if IDF_TARGET_ESP32C6
+    default 13 if IDF_TARGET_ESP32
+    default 5
+
+config EXAMPLE_LED2_GPIO
+    int "LED 2 GPIO number"
+    range 0 48
+    default 1 if IDF_TARGET_ESP32C6
+    default 12 if IDF_TARGET_ESP32
+    default 6
+

@@ -1,0 +1,13 @@
+chip-factory,namespace,
+discriminator,data,u32
+iteration-count,data,u32
+salt,data,string
+vendor-id,data,u32
+product-id,data,u32
+serial-num,data,string
+dac-cert,file,binary
+dac-key,file,binary
+dac-pub-key,file,binary
+pai-cert,file,binary
+verifier,data,string
+cert-dclrn,file,binary
