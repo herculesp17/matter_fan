@@ -4,3 +4,7 @@ dependencies:
     rules: # will add "optional_component" only when all if clauses are True
       - if: "idf_version >=5.0"
       - if: "target in [esp32c2]"
+sources:
+  - app_driver.cpp
+  - app_reset.cpp
+  - app_main.cpp

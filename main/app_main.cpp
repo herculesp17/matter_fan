@@ -9,12 +9,12 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <nvs_flash.h>
+#include <nvs.h>
 
 #include <esp_matter.h>
 #include <esp_matter_console.h>
 #include <esp_matter_ota.h>
 
-#include <common_macros.h>
 #include <app_priv.h>
 #include <app_reset.h>
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
@@ -23,8 +23,12 @@
 
 #include <app/server/CommissioningWindowManager.h>
 #include <app/server/Server.h>
-
+#include "shared.h"
 #include "driver/gpio.h"
+
+#define PRODUCT_NAME "Lüfter-Device"
+#define NVS_NAMESPACE "storage"
+#define COMMISSIONED_KEY "commissioned"
 
 static const char *TAG = "app_main";
 uint16_t fan_endpoint_id = 0;
@@ -44,6 +48,57 @@ extern const char decryption_key_end[] asm("_binary_esp_image_encryption_key_pem
 static const char *s_decryption_key = decryption_key_start;
 static const uint16_t s_decryption_key_len = decryption_key_end - decryption_key_start;
 #endif // CONFIG_ENABLE_ENCRYPTED_OTA
+//
+// factory reset button
+static gpio_num_t reset_gpio = gpio_num_t::GPIO_NUM_NC;
+bool commissioned = false;
+
+// Funktion zum Speichern des Kommissionierungsstatus
+void save_commissioned_status(bool status) {
+    nvs_handle_t nvs_handle;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle) == ESP_OK) {
+        nvs_set_u8(nvs_handle, COMMISSIONED_KEY, status ? 1 : 0);
+        nvs_commit(nvs_handle);
+        nvs_close(nvs_handle);
+    } else {
+        ESP_LOGE(TAG, "Failed to open NVS for writing");
+    }
+}
+
+// Funktion zum Laden des Kommissionierungsstatus
+bool load_commissioned_status() {
+    nvs_handle_t nvs_handle;
+    uint8_t commissioned_status = 0; // Standardwert: nicht kommissioniert
+
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs_handle) == ESP_OK) {
+        nvs_get_u8(nvs_handle, COMMISSIONED_KEY, &commissioned_status);
+        nvs_close(nvs_handle);
+    } else {
+        ESP_LOGW(TAG, "Failed to open NVS for reading");
+    }
+
+    return commissioned_status == 1;
+}
+///////////////////////////////////////////// led
+void led_blink_task(void *pvParameter)
+{
+    while (true) {
+
+        if (!commissioned) {
+            // Blinken: LED an
+            gpio_set_level((gpio_num_t)CONFIG_LED_PIN, 1);
+            vTaskDelay(pdMS_TO_TICKS(500)); // 500 ms warten
+
+            // Blinken: LED aus
+            gpio_set_level((gpio_num_t)CONFIG_LED_PIN, 0);
+            vTaskDelay(pdMS_TO_TICKS(500)); // 500 ms warten
+        } else {
+            gpio_set_level((gpio_num_t)CONFIG_LED_PIN, 0);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+}
+///////////////////////////////////////////// led
 
 static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
 {
@@ -54,6 +109,8 @@ static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
 
     case chip::DeviceLayer::DeviceEventType::kCommissioningComplete:
         ESP_LOGI(TAG, "Commissioning complete");
+        commissioned = true;
+        save_commissioned_status(commissioned);
         break;
 
     case chip::DeviceLayer::DeviceEventType::kFailSafeTimerExpired:
@@ -150,66 +207,55 @@ extern "C" void app_main()
 {
     esp_err_t err = ESP_OK;
 
-
     /* Initialize the ESP NVS layer */
     nvs_flash_init();
+
     /* Initialize driver */
-    app_driver_handle_t fan_handle = app_driver_light_init();
+    commissioned = load_commissioned_status();
+
+    led_init();
+    // app_driver_handle_t button_handle = app_driver_button_init();
+    // app_reset_button_register(button_handle);
+    /* Can ininialize Fan driver here */
+    app_driver_handle_t fan_handle = app_driver_fan_init();
 
     /* Create a Matter node and add the mandatory Root Node device type on endpoint 0 */
     node::config_t node_config;
-
-    // node handle can be used to add/modify other endpoints.
+    snprintf(node_config.root_node.basic_information.node_label, sizeof(node_config.root_node.basic_information.node_label),"%s", PRODUCT_NAME);
     node_t *node = node::create(&node_config, app_attribute_update_cb, app_identification_cb);
-    ABORT_APP_ON_FAILURE(node != nullptr, ESP_LOGE(TAG, "Failed to create Matter node"));
 
     fan::config_t fan_config;
+    fan_config.fan_control.fan_mode_sequence = FAN_MODE_SEQUEBCE_VALUE;
+    fan_config.fan_control.percent_current = 0;
+    fan_config.fan_control.percent_setting = static_cast<uint8_t>(0);
 
     endpoint_t *endpoint = fan::create(node, &fan_config, ENDPOINT_FLAG_NONE, fan_handle);
-    ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create fan endpoint device"));
+
     fan_endpoint_id = endpoint::get_id(endpoint);
 
-    auto cluster = esp_matter::cluster::get(endpoint, chip::app::Clusters::BasicInformation::Id);
-    auto attribute = esp_matter::attribute::get(cluster, chip::app::Clusters::BasicInformation::Attributes::NodeLabel::Id);
-    std::string data = "Fan Number one";
-    auto val = esp_matter_char_str(data.data(), data.length());
-    esp_matter::attribute::set_val(attribute, &val);
-
     endpoint_t *endpoint_1 = fan::create(node, &fan_config, ENDPOINT_FLAG_NONE, fan_handle);
-    ABORT_APP_ON_FAILURE(endpoint_1 != nullptr, ESP_LOGE(TAG, "Failed to create fan endpoint device"));
     fan_endpoint_id_1 = endpoint::get_id(endpoint_1);
 
-    auto cluster_1 = esp_matter::cluster::get(endpoint_1, chip::app::Clusters::BasicInformation::Id);
-    auto attribute_1 = esp_matter::attribute::get(cluster_1, chip::app::Clusters::BasicInformation::Attributes::NodeLabel::Id);
-    std::string data_1 = "Fan Number two";
-    auto val_1 = esp_matter_char_str(data_1.data(), data_1.length());
-    esp_matter::attribute::set_val(attribute_1, &val_1);
+    ESP_LOGI(TAG, "Light created with endpoint_id %d", fan_endpoint_id);
+    ESP_LOGI(TAG, "Light created with endpoint_id %d", fan_endpoint_id_1);
 
 
-    // Add On/Off cluster to the first endpoint
-    cluster::on_off::config_t on_off_config;
-    cluster::on_off::create(endpoint, &on_off_config, CLUSTER_FLAG_SERVER, 0);
+    /* These node and endpoint handles can be used to create/add other endpoints and clusters. */
+    if (!node || !endpoint) {
+        ESP_LOGE(TAG, "Matter node creation failed");
+    }
 
-    // Add Level Control cluster to the first endpoint
-    cluster::level_control::config_t level_control_config;
-    cluster::level_control::create(endpoint, &level_control_config, CLUSTER_FLAG_SERVER, 0);
+    ESP_LOGI(TAG, "Fan created with endpoint_id %d", fan_endpoint_id);
 
-    // Add On/Off cluster to the second endpoint
-    cluster::on_off::config_t on_off_config_1;
-    cluster::on_off::create(endpoint_1, &on_off_config_1, CLUSTER_FLAG_SERVER, 0);
-
-    // Add Level Control cluster to the second endpoint
-    cluster::level_control::config_t level_control_config_1;
-    cluster::level_control::create(endpoint_1, &level_control_config_1, CLUSTER_FLAG_SERVER, 0);
+    xTaskCreate(led_blink_task, "blink_led_task", 2048, NULL, 5, NULL);
 
 
-    
-#if CHIP_DEVICE_CONFIG_ENABLE_THREAD && CHIP_DEVICE_CONFIG_ENABLE_WIFI_STATION
-    // Enable secondary network interface
-    secondary_network_interface::config_t secondary_network_interface_config;
-    endpoint = endpoint::secondary_network_interface::create(node, &secondary_network_interface_config, ENDPOINT_FLAG_NONE, nullptr);
-    ABORT_APP_ON_FAILURE(endpoint != nullptr, ESP_LOGE(TAG, "Failed to create secondary network interface endpoint"));
-#endif
+    // Initialize factory reset button
+    app_driver_handle_t button_handle = app_driver_button_init(&reset_gpio);
+    if (button_handle) {
+        app_reset_button_register(button_handle);
+    }
+    //
 
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
@@ -224,20 +270,20 @@ extern "C" void app_main()
 
     /* Matter start */
     err = esp_matter::start(app_event_cb);
-    ABORT_APP_ON_FAILURE(err == ESP_OK, ESP_LOGE(TAG, "Failed to start Matter, err:%d", err));
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Matter start failed: %d", err);
+    }
 
 #if CONFIG_ENABLE_ENCRYPTED_OTA
     err = esp_matter_ota_requestor_encrypted_init(s_decryption_key, s_decryption_key_len);
-    ABORT_APP_ON_FAILURE(err == ESP_OK, ESP_LOGE(TAG, "Failed to initialized the encrypted OTA, err: %d", err));
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialized the encrypted OTA, err: %d", err);
+    }
 #endif // CONFIG_ENABLE_ENCRYPTED_OTA
 
 #if CONFIG_ENABLE_CHIP_SHELL
     esp_matter::console::diagnostics_register_commands();
     esp_matter::console::wifi_register_commands();
-    esp_matter::console::factoryreset_register_commands();
-#if CONFIG_OPENTHREAD_CLI
-    esp_matter::console::otcli_register_commands();
-#endif
     esp_matter::console::init();
 #endif
 }

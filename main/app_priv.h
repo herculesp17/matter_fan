@@ -10,25 +10,21 @@
 
 #include <esp_err.h>
 #include <esp_matter.h>
+#include "driver/gpio.h"
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
 #include "esp_openthread_types.h"
 #endif
 
-/** Matter max values (used for remapping attributes) */
-#define MATTER_MAX_SPEED 100 
-
+#define FAN_MODE_SEQUEBCE_VALUE 2
+#define LOW_MODE_PERCENT_MIN 1
+#define LOW_MODE_PERCENT_MAX 33
+#define MED_MODE_PERCENT_MIN 34
+#define MED_MODE_PERCENT_MAX 66
+#define HIGH_MODE_PERCENT_MIN 67
+#define HIGH_MODE_PERCENT_MAX 100
 
 typedef void *app_driver_handle_t;
-
-/** Initialize the light driver
- *
- * This initializes the light driver associated with the selected board.
- *
- * @return Handle on success.
- * @return NULL in case of failure.
- */
-app_driver_handle_t app_driver_light_init();
 
 /** Initialize the button driver
  *
@@ -37,8 +33,10 @@ app_driver_handle_t app_driver_light_init();
  * @return Handle on success.
  * @return NULL in case of failure.
  */
-app_driver_handle_t app_driver_button_init();
 
+app_driver_handle_t app_driver_fan_init();
+
+app_driver_handle_t app_driver_button_init(gpio_num_t * reset_gpio);
 /** Driver Update
  *
  * This API should be called to update the driver for the attribute being updated.
@@ -54,17 +52,6 @@ app_driver_handle_t app_driver_button_init();
  */
 esp_err_t app_driver_attribute_update(app_driver_handle_t driver_handle, uint16_t endpoint_id, uint32_t cluster_id,
                                       uint32_t attribute_id, esp_matter_attr_val_t *val);
-
-/** Set defaults for light driver
- *
- * Set the attribute drivers to their default values from the created data model.
- *
- * @param[in] endpoint_id Endpoint ID of the driver.
- *
- * @return ESP_OK on success.
- * @return error in case of failure.
- */
-esp_err_t app_driver_light_set_defaults(uint16_t endpoint_id);
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
 #define ESP_OPENTHREAD_DEFAULT_RADIO_CONFIG()                                           \
@@ -82,3 +69,15 @@ esp_err_t app_driver_light_set_defaults(uint16_t endpoint_id);
         .storage_partition_name = "nvs", .netif_queue_size = 10, .task_queue_size = 10, \
     }
 #endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Deklaration der Funktion led_init
+void led_init(void);
+
+#ifdef __cplusplus
+}
+#endif
+

@@ -1,14 +1,25 @@
-config EXAMPLE_LED_GPIO
-    int "LED GPIO number"
-    range 0 48
-    default 0 if IDF_TARGET_ESP32C6
-    default 13 if IDF_TARGET_ESP32
-    default 5
+menu "GPIO Configurations"
+    config EXAMPLE_FAN_GPIO
+        int "Fan 1 GPIO number"
+        range 0 48
+        default 0 if IDF_TARGET_ESP32C6
+        default 18 if IDF_TARGET_ESP32
+        default 5
 
-config EXAMPLE_LED2_GPIO
-    int "LED 2 GPIO number"
-    range 0 48
-    default 1 if IDF_TARGET_ESP32C6
-    default 12 if IDF_TARGET_ESP32
-    default 6
+    config EXAMPLE_FAN2_GPIO
+        int "Fan 2 GPIO number"
+        range 0 48
+        default 1 if IDF_TARGET_ESP32C6
+        default 19 if IDF_TARGET_ESP32
+        default 6
 
+    config BUTTON_PIN
+        int "GPIO for reading state connected to the Push Button"
+        default 21 if IDF_TARGET_ESP32C6
+        default 21 if IDF_TARGET_ESP32
+
+    config LED_PIN
+        int "LED GPIO for Commissioning Mode"
+        default 18 if IDF_TARGET_ESP32C6
+        default 22 if IDF_TARGET_ESP32
+endmenu
